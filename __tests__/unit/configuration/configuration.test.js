@@ -762,6 +762,10 @@ describe('with version 1', () => {
     config = await Configuration.fetchConfigFile(context)
     expect(config.mergeable.length).toEqual(1)
     expect(config.mergeable[0].name).toBe('repository rules')
+
+    // Clean-up the cache state after test
+    const configCache = Configuration.getCache()
+    await configCache.reset()
   })
 
   test('check config cache uses only owner as cache key if only global config can be fetched', async () => {
@@ -785,7 +789,6 @@ describe('with version 1', () => {
     context.globalSettings.use_org_as_default_config = true
     const configCache = Configuration.getCache()
     const repo = context.repo()
-    // configCache.set(repo.owner, orgConfig)
     let keys = await configCache.keys()
     expect(keys.length).toEqual(0)
     context.eventName = 'push'
@@ -802,6 +805,9 @@ describe('with version 1', () => {
     await configCache.set(repo.owner, injectedConfig)
     config = await Configuration.fetchConfigFile(context)
     expect(config).toEqual(injectedConfig)
+
+    // Clean-up the cache state after test
+    await configCache.reset()
   })
 })
 
