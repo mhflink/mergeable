@@ -763,6 +763,46 @@ describe('with version 1', () => {
     expect(config.mergeable.length).toEqual(1)
     expect(config.mergeable[0].name).toBe('repository rules')
   })
+
+  test('check config cache uses only owner as cache key if only global config can be fetched', async () => {
+    const orgConfigStr = `
+          mergeable:
+            issues:
+              stale:
+                days: 20
+                message: Issue test
+            pull_requests:
+              stale:
+                days: 20
+                message: PR test
+        `
+    // Check that on first load, the cache is correctly set
+    const emptyConfig = '{}'
+    const orgConfig = yaml.safeLoad(orgConfigStr)
+    const context = createMockGhConfig(emptyConfig, orgConfigStr)
+    context.globalSettings.use_config_cache = true
+    context.globalSettings.use_config_from_pull_request = false
+    context.globalSettings.use_org_as_default_config = true
+    const configCache = Configuration.getCache()
+    const repo = context.repo()
+    // configCache.set(repo.owner, orgConfig)
+    let keys = await configCache.keys()
+    expect(keys.length).toEqual(0)
+    context.eventName = 'push'
+    context.payload.head_commit = { added: ['.github/mergeable.yml'] }
+    expect(context.probotContext.config.mock.calls.length).toEqual(0)
+    let config = await Configuration.fetchConfigFile(context)
+    expect(config).toEqual(orgConfig)
+    keys = await configCache.keys()
+    expect(keys.length).toEqual(1)
+    const cachedConfig = await configCache.get(repo.owner)
+    expect(cachedConfig).toEqual(orgConfig)
+    // Check that cached value in the repo.owner is really used
+    const injectedConfig = { test: 'test' }
+    await configCache.set(repo.owner, injectedConfig)
+    config = await Configuration.fetchConfigFile(context)
+    expect(config).toEqual(injectedConfig)
+  })
 })
 
 // helper method to return mocked configiration.
